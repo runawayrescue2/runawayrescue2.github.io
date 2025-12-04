@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Runaway Rescue</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-hero">
+    <div class="container d-flex align-items-center justify-content-between">
+      <div>
+        <h1 class="brand">Runaway Rescue <span class="emoji">🛟</span></h1>
+        <p class="lead">Search nearby adoptable animals and view full details.</p>
+      </div>
+      <div class="small text-muted">Demo</div>
+    </div>
+  </header>
+
+  <main class="container my-5">
+    <section class="search-panel p-4 rounded-3 shadow-sm mb-4">
+      <div class="row g-3 align-items-center">
+        <div class="col-md-4">
+          <input id="postalCode" class="form-control" placeholder="Postal code (e.g., 01772)" />
+        </div>
+        <div class="col-md-3">
+          <select id="distance" class="form-select">
+            <option value="">Select radius</option>
+            <option value="10">10 miles</option>
+            <option value="25">25 miles</option>
+            <option value="50">50 miles</option>
+            <option value="100">100 miles</option>
+          </select>
+        </div>
+        <div class="col-md-3 d-grid">
+          <button id="searchBtn" class="btn btn-primary btn-lg">Search</button>
+        </div>
+        <div class="col-md-2 text-end">
+          <button id="clearBtn" class="btn btn-outline-secondary">Clear</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="resultsSection">
+      <div id="loading" class="spinner-center d-none">
+        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+      </div>
+
+      <div id="animalContainer" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4"></div>
+
+      <div id="noResults" class="alert alert-warning mt-4 d-none" role="alert">
+        No animals found. Try a larger radius or different postal code.
+      </div>
+    </section>
+
+    <footer class="mt-5 text-center text-muted small">
+      Built with RescueGroups API. For production, move API calls to a server to protect the key.
+    </footer>
+  </main>
+
+  <!-- Detail Modal -->
+  <div class="modal fade" id="animalModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 id="modalTitle" class="modal-title">Animal Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-5">
+              <div id="modalImage" class="img-placeholder rounded"></div>
+            </div>
+            <div class="col-md-7">
+              <ul class="list-unstyled mb-3">
+                <li><strong>Breed:</strong> <span id="modalBreed"></span></li>
+                <li><strong>Age:</strong> <span id="modalAge"></span></li>
+                <li><strong>Sex:</strong> <span id="modalSex"></span></li>
+                <li><strong>Weight:</strong> <span id="modalWeight"></span></li>
+                <li><strong>Color:</strong> <span id="modalColor"></span></li>
+                <li><strong>Coat / Physical traits:</strong> <span id="modalCoat"></span></li>
+                <li><strong>Neutered / Altered:</strong> <span id="modalAltered"></span></li>
+                <li><strong>Location:</strong> <span id="modalLocation"></span></li>
+                <li><strong>Organization:</strong> <span id="modalOrg"></span></li>
+                <li><strong>Contact:</strong> <span id="modalContact"></span></li>
+              </ul>
+
+              <div>
+                <h6 class="mb-1">Story / Notes</h6>
+                <p id="modalNotes" class="small text-muted"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <a id="modalEmailBtn" class="btn btn-primary" href="#" target="_blank">Contact Foster / Org</a>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+    <div id="toast" class="toast align-items-center text-bg-warning border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div id="toastBody" class="toast-body">Message</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- App JS -->
+  <script src="app.js"></script>
+</body>
+</html>
