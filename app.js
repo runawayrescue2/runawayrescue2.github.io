@@ -11,7 +11,7 @@ function getAnimalData(postalCode, distance) {
     search: {
       calcFoundRows: "Yes",
       resultStart: 0,
-      resultLimit: 24,
+      resultLimit: 40,
       resultSort: "animalID",
       fields: [
         "animalID","animalOrgID","animalName","animalSpecies","animalBreed",
