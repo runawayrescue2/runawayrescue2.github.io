@@ -16,7 +16,7 @@
     <div class="container d-flex align-items-center justify-content-between">
       <div>
         <h1 class="brand">Runaway Rescue <span class="emoji">🛟</span></h1>
-        <p class="lead">Search nearby adoptable animals and view full details.</p>
+        <p class="lead">Search adoptable animals by country, state and city (RescueGroups)</p>
       </div>
       <div class="small text-muted">Demo</div>
     </div>
@@ -25,23 +25,50 @@
   <main class="container my-5">
     <section class="search-panel p-4 rounded-3 shadow-sm mb-4">
       <div class="row g-3 align-items-center">
-        <div class="col-md-4">
-          <input id="postalCode" class="form-control" placeholder="Postal code (e.g., 01772)" />
-        </div>
         <div class="col-md-3">
+          <label for="country" class="form-label visually-hidden">Country</label>
+          <select id="country" class="form-select" aria-label="Country selector">
+            <option value="">Select country</option>
+            <option value="US">United States</option>
+            <option value="CA">Canada</option>
+            <option value="KR">South Korea</option>
+          </select>
+        </div>
+
+        <div class="col-md-3">
+          <label for="state" class="form-label visually-hidden">State</label>
+          <select id="state" class="form-select" aria-label="State selector" disabled>
+            <option value="">Select state</option>
+          </select>
+        </div>
+
+        <div class="col-md-3">
+          <label for="city" class="form-label visually-hidden">City</label>
+          <select id="city" class="form-select" aria-label="City selector" disabled>
+            <option value="">Select city</option>
+          </select>
+        </div>
+
+        <div class="col-md-3">
+          <label for="distance" class="form-label visually-hidden">Radius</label>
           <select id="distance" class="form-select">
-            <option value="">Select radius</option>
             <option value="10">10 miles</option>
-            <option value="25">25 miles</option>
+            <option value="25" selected>25 miles</option>
             <option value="50">50 miles</option>
             <option value="100">100 miles</option>
           </select>
         </div>
-        <div class="col-md-3 d-grid">
+
+        <div class="col-md-3 d-grid mt-3">
           <button id="searchBtn" class="btn btn-primary btn-lg">Search</button>
         </div>
-        <div class="col-md-2 text-end">
+
+        <div class="col-md-3 d-grid mt-3">
           <button id="clearBtn" class="btn btn-outline-secondary">Clear</button>
+        </div>
+
+        <div class="col-md-6 text-md-end mt-3">
+          <small class="text-muted">Demo only — keep API keys on a server for production.</small>
         </div>
       </div>
     </section>
@@ -54,7 +81,7 @@
       <div id="animalContainer" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4"></div>
 
       <div id="noResults" class="alert alert-warning mt-4 d-none" role="alert">
-        No animals found. Try a larger radius or different postal code.
+        No animals found. Try a different city, state, or radius.
       </div>
     </section>
 
