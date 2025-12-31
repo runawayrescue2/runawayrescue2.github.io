@@ -1,8 +1,9 @@
-// API configuration
+// app.js
+// API configuration (demo key). Move to server for production.
 const httpApiUrl = "https://api.rescuegroups.org/http/v2.json";
-const apiKey = "tHFlqnHF"; // Demo key; move to server for production
+const apiKey = "tHFlqnHF";
 
-// Build animal search payload (list)
+// Build animal search payload (postal code + radius)
 function getAnimalData(postalCode, distance) {
   return {
     apikey: apiKey,
@@ -15,7 +16,7 @@ function getAnimalData(postalCode, distance) {
       resultSort: "animalID",
       fields: [
         "animalID","animalOrgID","animalName","animalSpecies","animalBreed",
-        "animalThumbnailUrl","animalLocationCitystate","fosterEmail","animalAge","animalSex"
+        "animalPictures","animalThumbnailUrl","animalLocationCitystate","fosterEmail","animalAge","animalSex","animalDescription"
       ],
       filters: [
         { fieldName: "animalStatus", operation: "equals", criteria: "Available" },
@@ -26,7 +27,7 @@ function getAnimalData(postalCode, distance) {
   };
 }
 
-// Build single-animal detail payload (includes requested fields)
+// Detail payload
 function getAnimalDetailData(animalID) {
   return {
     apikey: apiKey,
@@ -37,7 +38,7 @@ function getAnimalDetailData(animalID) {
       resultLimit: 1,
       fields: [
         "animalID","animalOrgID","animalName","animalSpecies","animalBreed",
-        "animalThumbnailUrl","animalLocationCitystate","fosterEmail","animalAge",
+        "animalPictures","animalThumbnailUrl","animalLocationCitystate","fosterEmail","animalAge",
         "animalSex","animalWeight","animalColor","animalCoatLength","animalCoatType",
         "animalStatus","animalDateAvailable","animalDescription","animalAltered"
       ],
@@ -77,284 +78,353 @@ async function postJson(url, jsonData) {
       const text = await response.text();
       throw new Error(`HTTP ${response.status} - ${text}`);
     }
-    const result = await response.json();
-    return { status: 'ok', result };
-  } catch (error) {
-    return { status: 'error', error: error.message };
-  }
-}
-
-// Wrapper to call API and return parsed result or error object
-async function postToApi(data) {
-  const res = await postJson(httpApiUrl, data);
-  if (res.status === 'ok') return res.result;
-  return { status: 'error', text: res.error || 'API error' };
-}
-
-// UI helpers
-const toastEl = document.getElementById('toast');
-const toastBody = document.getElementById('toastBody');
-const bsToast = new bootstrap.Toast(toastEl, { delay: 4000 });
-function showToast(message) {
-  toastBody.textContent = message;
-  bsToast.show();
-}
-function setLoading(on) {
-  document.getElementById('loading').classList.toggle('d-none', !on);
-}
-
-// Escape HTML
-function escapeHtml(str) {
-  if (!str && str !== 0) return '';
-  return String(str)
-    .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
-    .replaceAll('"','&quot;').replaceAll("'",'&#39;');
-}
-
-// Sanitize HTML: remove tags, scripts, images, trackers and decode entities
-function sanitizeHtml(html) {
-  if (!html && html !== 0) return '';
-  // Create a DOM element to parse the HTML
-  const container = document.createElement('div');
-  container.innerHTML = String(html);
-
-  // Remove script, style, and img elements (trackers)
-  const forbidden = container.querySelectorAll('script, style, img, iframe, object, embed');
-  forbidden.forEach(n => n.remove());
-
-  // Remove attributes that could be problematic (on* handlers, srcset, style)
-  const all = container.querySelectorAll('*');
-  all.forEach(node => {
-    // remove event handlers and inline styles and tracking attributes
-    [...node.attributes].forEach(attr => {
-      const name = attr.name.toLowerCase();
-      if (name.startsWith('on') || name === 'style' || name === 'src' || name === 'srcset' || name === 'data-src') {
-        node.removeAttribute(attr.name);
-      }
-    });
-  });
-
-  // Get plain text which decodes HTML entities
-  const text = container.textContent || container.innerText || '';
-  // Normalize whitespace and trim
-  return text.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-// Main search
-async function fetchAnimals() {
-  const container = document.getElementById('animalContainer');
-  container.innerHTML = '';
-  document.getElementById('noResults').classList.add('d-none');
-
-  const postalCode = document.getElementById("postalCode").value.trim();
-  const distance = document.getElementById("distance").value;
-
-  if (!postalCode && !distance) { showToast('Please enter postal code and distance.'); return; }
-  if (!postalCode) { showToast('Please enter a postal code.'); return; }
-  if (!distance) { showToast('Please select a radius.'); return; }
-
-  setLoading(true);
-
-  try {
-    const payload = getAnimalData(postalCode, distance);
-    const result = await postToApi(payload);
-
-    if (!result || result.status === 'error') {
-      showToast(result && result.text ? result.text : 'API error');
-      setLoading(false);
-      return;
-    }
-
-    if (!result.data || Object.keys(result.data).length === 0 || result.foundRows === 0) {
-      document.getElementById('noResults').classList.remove('d-none');
-      showToast('No animals found.');
-      setLoading(false);
-      return;
-    }
-
-    await displayAnimals(result.data);
+    return await response.json();
   } catch (err) {
-    showToast(err.message || 'Error fetching animals');
-  } finally {
-    setLoading(false);
+    throw err;
   }
 }
 
-// Render cards
-async function displayAnimals(data) {
-  const container = document.getElementById('animalContainer');
-  const keys = Object.keys(data).sort((a,b)=>Number(a)-Number(b));
+// Helper: extract records from RescueGroups response
+function extractRecords(apiResult) {
+  if (!apiResult) return [];
+  if (Array.isArray(apiResult.data)) return apiResult.data;
+  if (apiResult.data && typeof apiResult.data === 'object') {
+    const keys = Object.keys(apiResult.data).filter(k => !isNaN(Number(k)));
+    if (keys.length) return keys.map(k => apiResult.data[k]);
+    if (Array.isArray(apiResult.data.animals)) return apiResult.data.animals;
+  }
+  return [];
+}
 
-  for (const key of keys) {
-    const animal = data[key];
-    const imgUrl = animal.animalThumbnailUrl ? animal.animalThumbnailUrl.split('?')[0] : null;
+// Helper: strip HTML tags from description
+function stripHtml(html) {
+  if (!html) return '';
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return div.textContent || div.innerText || '';
+}
 
-    // Create card element
-    const col = document.createElement('div');
-    col.className = 'col';
-
-    const card = document.createElement('div');
-    card.className = 'card h-100 position-relative';
-
-    // Image or placeholder
-    if (imgUrl) {
-      const img = document.createElement('img');
-      img.className = 'card-img-top';
-      img.src = imgUrl;
-      img.alt = escapeHtml(animal.animalName || 'animal');
-      card.appendChild(img);
-    } else {
-      const noImg = document.createElement('div');
-      noImg.className = 'no-image';
-      noImg.textContent = 'No image';
-      card.appendChild(noImg);
+// Regions mapping: country -> state -> city -> postalCode
+const regions = {
+  US: {
+    'California': {
+      'Los Angeles': '90001',
+      'San Francisco': '94102',
+      'San Diego': '92101',
+      'DEFAULT': '89019'
+    },
+    'Illinois': {
+      'Chicago': '60601',
+      'Naperville': '60540',
+      'Springfield': '62701'
+    },
+    'New York': {
+      'New York': '10001',
+      'Buffalo': '14201'
     }
+  },
+  CA: {
+    'Ontario': {
+      'Toronto': 'M5H',
+      'Ottawa': 'K1A',
+      'DEFAULT': 'M4B'
+    }
+  },
+  KR: {
+    'Seoul': {
+      'Seoul': '04524'
+    }
+  }
+};
 
-    // Card body
-    const body = document.createElement('div');
-    body.className = 'card-body';
-    body.innerHTML = `
-      <h5 class="card-title mb-1">${escapeHtml(animal.animalName || 'Unnamed')}</h5>
-      <p class="mb-1"><strong>Breed:</strong> ${escapeHtml(animal.animalBreed || '-')}</p>
-      <p class="mb-1"><strong>Age:</strong> ${escapeHtml(animal.animalAge || '-')}</p>
-      <p class="mb-1 text-muted small">${escapeHtml(animal.animalLocationCitystate || '')}</p>
-    `;
-    card.appendChild(body);
+// UI logic
+document.addEventListener('DOMContentLoaded', () => {
+  const countryEl = document.getElementById('country');
+  const stateEl = document.getElementById('state');
+  const cityEl = document.getElementById('city');
+  const distanceEl = document.getElementById('distance');
+  const searchBtn = document.getElementById('searchBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const loadingEl = document.getElementById('loading');
+  const animalContainer = document.getElementById('animalContainer');
+  const noResultsEl = document.getElementById('noResults');
+  const toastEl = document.getElementById('toast');
+  const toastBody = document.getElementById('toastBody');
 
-    // Footer with action
-    const footer = document.createElement('div');
-    footer.className = 'card-footer bg-transparent border-0';
-    footer.innerHTML = `
-      <div class="d-flex justify-content-between align-items-center">
-        <small class="text-muted">${escapeHtml(animal.animalSpecies || '')}</small>
-        <button class="btn btn-sm btn-outline-primary view-details" data-animalid="${animal.animalID}">View</button>
-      </div>
-    `;
-    card.appendChild(footer);
-
-    col.appendChild(card);
-    container.appendChild(col);
+  function showToast(message) {
+    toastBody.textContent = message;
+    const bsToast = new bootstrap.Toast(toastEl);
+    bsToast.show();
   }
 
-  // Attach click handlers for details
-  container.querySelectorAll('.view-details').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const id = e.currentTarget.getAttribute('data-animalid');
-      await showAnimalDetails(id);
-    });
+  // Populate states when country changes
+  countryEl.addEventListener('change', () => {
+    const country = countryEl.value;
+    stateEl.innerHTML = '<option value="">Select state</option>';
+    cityEl.innerHTML = '<option value="">Select city</option>';
+    cityEl.disabled = true;
+
+    if (country && regions[country]) {
+      Object.keys(regions[country]).forEach(stateName => {
+        const opt = document.createElement('option');
+        opt.value = stateName;
+        opt.textContent = stateName;
+        stateEl.appendChild(opt);
+      });
+      stateEl.disabled = false;
+    } else {
+      stateEl.disabled = true;
+    }
   });
-}
 
-// Show modal with extended details
-async function showAnimalDetails(animalID) {
-  setLoading(true);
-  try {
-    const detailPayload = getAnimalDetailData(animalID);
-    const detailResult = await postToApi(detailPayload);
+  // Populate cities when state changes
+  stateEl.addEventListener('change', () => {
+    const country = countryEl.value;
+    const stateName = stateEl.value;
+    cityEl.innerHTML = '<option value="">Select city</option>';
 
-    if (!detailResult || detailResult.status === 'error' || !detailResult.data) {
-      showToast('Unable to fetch animal details.');
-      setLoading(false);
+    if (country && stateName && regions[country] && regions[country][stateName]) {
+      const citiesObj = regions[country][stateName];
+      Object.keys(citiesObj).forEach(cityName => {
+        if (cityName === 'DEFAULT') return;
+        const opt = document.createElement('option');
+        opt.value = cityName;
+        opt.textContent = cityName;
+        cityEl.appendChild(opt);
+      });
+      cityEl.disabled = false;
+    } else {
+      cityEl.disabled = true;
+    }
+  });
+
+  // Render animals
+  function renderAnimals(list) {
+    animalContainer.innerHTML = '';
+    if (!list || list.length === 0) {
+      noResultsEl.classList.remove('d-none');
       return;
     }
+    noResultsEl.classList.add('d-none');
 
-    const key = Object.keys(detailResult.data)[0];
-    const animal = detailResult.data[key];
+    list.forEach(a => {
+      const col = document.createElement('div');
+      col.className = 'col';
 
-    // Fetch org info
-    let orgName = '';
-    let orgPhone = '';
-    let orgEmail = '';
+      const card = document.createElement('div');
+      card.className = 'card h-100';
+
+      // image
+      const imgWrap = document.createElement('div');
+      if (a.animalPictures && a.animalPictures[0]) {
+        const url = a.animalPictures[0].urlSecureFullsize || a.animalPictures[0].urlSecureThumbnail || a.animalPictures[0].url;
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = a.animalName || 'Animal';
+        img.className = 'card-img-top';
+        img.loading = 'lazy';
+        imgWrap.appendChild(img);
+      } else if (a.animalThumbnailUrl) {
+        const img = document.createElement('img');
+        img.src = a.animalThumbnailUrl;
+        img.alt = a.animalName || 'Animal';
+        img.className = 'card-img-top';
+        img.loading = 'lazy';
+        imgWrap.appendChild(img);
+      } else {
+        const noImg = document.createElement('div');
+        noImg.className = 'no-image';
+        noImg.textContent = a.animalName || 'No image';
+        imgWrap.appendChild(noImg);
+      }
+
+      const body = document.createElement('div');
+      body.className = 'card-body';
+
+      const title = document.createElement('h5');
+      title.className = 'card-title';
+      title.textContent = a.animalName || 'Unnamed';
+
+      const meta = document.createElement('p');
+      meta.className = 'card-text text-muted small';
+      meta.innerHTML = `<strong>Breed:</strong> ${a.animalBreed || '—'} • <strong>Age:</strong> ${a.animalAge || '—'}`;
+
+      const footer = document.createElement('div');
+      footer.className = 'card-footer bg-transparent border-0 pt-0';
+
+      const detailsBtn = document.createElement('button');
+      detailsBtn.className = 'btn btn-sm btn-outline-primary';
+      detailsBtn.textContent = 'View details';
+      detailsBtn.addEventListener('click', () => openModal(a.animalID, a.animalOrgID));
+
+      body.appendChild(title);
+      body.appendChild(meta);
+      footer.appendChild(detailsBtn);
+
+      card.appendChild(imgWrap);
+      card.appendChild(body);
+      card.appendChild(footer);
+      col.appendChild(card);
+      animalContainer.appendChild(col);
+    });
+  }
+
+  // Open modal and fetch details + org info
+  async function openModal(animalID, orgID) {
+    document.getElementById('modalTitle').textContent = 'Loading...';
+    document.getElementById('modalImage').innerHTML = '';
+    document.getElementById('modalBreed').textContent = '';
+    document.getElementById('modalAge').textContent = '';
+    document.getElementById('modalSex').textContent = '';
+    document.getElementById('modalWeight').textContent = '';
+    document.getElementById('modalColor').textContent = '';
+    document.getElementById('modalCoat').textContent = '';
+    document.getElementById('modalAltered').textContent = '';
+    document.getElementById('modalLocation').textContent = '';
+    document.getElementById('modalOrg').textContent = '';
+    document.getElementById('modalContact').textContent = '';
+    document.getElementById('modalNotes').textContent = '';
+
+    const modal = new bootstrap.Modal(document.getElementById('animalModal'));
+    modal.show();
+
     try {
-      const orgPayload = getAnimalOrgData(animal.animalOrgID);
-      const orgResult = await postToApi(orgPayload);
-      if (orgResult && orgResult.data) {
-        const orgKey = Object.keys(orgResult.data)[0];
-        const org = orgResult.data[orgKey];
-        orgName = org.orgName || '';
-        orgPhone = org.orgPhone || '';
-        orgEmail = org.orgEmail || '';
+      const detailRes = await postJson(httpApiUrl, getAnimalDetailData(animalID));
+      const detailRecords = extractRecords(detailRes);
+      const animal = detailRecords[0] || {};
+
+      document.getElementById('modalTitle').textContent = animal.animalName || 'Animal Details';
+
+      const modalImage = document.getElementById('modalImage');
+      modalImage.innerHTML = '';
+      if (animal.animalPictures && animal.animalPictures[0]) {
+        const url = animal.animalPictures[0].urlSecureFullsize || animal.animalPictures[0].urlSecureThumbnail || animal.animalPictures[0].url;
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = animal.animalName || 'Animal';
+        modalImage.appendChild(img);
+      } else if (animal.animalThumbnailUrl) {
+        const img = document.createElement('img');
+        img.src = animal.animalThumbnailUrl;
+        img.alt = animal.animalName || 'Animal';
+        modalImage.appendChild(img);
+      } else {
+        modalImage.textContent = animal.animalName || 'No image';
       }
-    } catch (e) {
-      // ignore
+
+      document.getElementById('modalBreed').textContent = animal.animalBreed || '—';
+      document.getElementById('modalAge').textContent = animal.animalAge || '—';
+      document.getElementById('modalSex').textContent = animal.animalSex || '—';
+      document.getElementById('modalWeight').textContent = animal.animalWeight || '—';
+      document.getElementById('modalColor').textContent = animal.animalColor || '—';
+      const coat = [animal.animalCoatLength, animal.animalCoatType].filter(Boolean).join(' / ');
+      document.getElementById('modalCoat').textContent = coat || '—';
+      document.getElementById('modalAltered').textContent = animal.animalAltered || 'Unknown';
+      document.getElementById('modalLocation').textContent = animal.animalLocationCitystate || '—';
+      document.getElementById('modalNotes').textContent = stripHtml(animal.animalDescription || '');
+
+      // fetch org info if available
+      if (orgID) {
+        try {
+          const orgRes = await postJson(httpApiUrl, getAnimalOrgData(orgID));
+          const orgRecords = extractRecords(orgRes);
+          const org = orgRecords[0] || {};
+          const orgText = `${org.orgName || '—'}${org.orgCity ? ' (' + org.orgCity + (org.orgState ? ', ' + org.orgState : '') + ')' : ''}`;
+          document.getElementById('modalOrg').textContent = orgText;
+          const contact = org.orgEmail || org.orgPhone || animal.fosterEmail || '—';
+          document.getElementById('modalContact').textContent = contact;
+          const emailBtn = document.getElementById('modalEmailBtn');
+          if (org.orgEmail) {
+            emailBtn.href = `mailto:${org.orgEmail}?subject=Interested in adopting ${encodeURIComponent(animal.animalName || '')}`;
+            emailBtn.classList.remove('disabled');
+          } else if (animal.fosterEmail) {
+            emailBtn.href = `mailto:${animal.fosterEmail}?subject=Interested in adopting ${encodeURIComponent(animal.animalName || '')}`;
+            emailBtn.classList.remove('disabled');
+          } else {
+            emailBtn.href = '#';
+            emailBtn.classList.add('disabled');
+          }
+        } catch (err) {
+          console.warn('Org fetch failed', err);
+        }
+      } else {
+        const emailBtn = document.getElementById('modalEmailBtn');
+        if (animal.fosterEmail) {
+          emailBtn.href = `mailto:${animal.fosterEmail}?subject=Interested in adopting ${encodeURIComponent(animal.animalName || '')}`;
+          emailBtn.classList.remove('disabled');
+          document.getElementById('modalContact').textContent = animal.fosterEmail;
+        } else {
+          emailBtn.href = '#';
+          emailBtn.classList.add('disabled');
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to load details.');
     }
-
-    // Populate modal
-    document.getElementById('modalTitle').textContent = animal.animalName || 'Animal Details';
-
-    const modalImage = document.getElementById('modalImage');
-    modalImage.innerHTML = '';
-    if (animal.animalThumbnailUrl) {
-      const img = document.createElement('img');
-      img.src = animal.animalThumbnailUrl.split('?')[0];
-      img.alt = escapeHtml(animal.animalName || 'animal');
-      modalImage.appendChild(img);
-    } else {
-      modalImage.textContent = 'No image';
-    }
-
-    document.getElementById('modalBreed').textContent = animal.animalBreed || '-';
-    document.getElementById('modalAge').textContent = animal.animalAge || '-';
-    document.getElementById('modalSex').textContent = animal.animalSex || '-';
-    document.getElementById('modalWeight').textContent = animal.animalWeight || '-';
-    document.getElementById('modalColor').textContent = animal.animalColor || '-';
-    // coat info: combine coat length/type if available
-    const coatParts = [];
-    if (animal.animalCoatLength) coatParts.push(animal.animalCoatLength);
-    if (animal.animalCoatType) coatParts.push(animal.animalCoatType);
-    document.getElementById('modalCoat').textContent = coatParts.length ? coatParts.join(' / ') : '-';
-    // altered / neutered
-    const altered = (animal.animalAltered === 'Yes' || animal.animalAltered === true || animal.animalAltered === 'true') ? 'Yes' :
-                    (animal.animalAltered === 'No' || animal.animalAltered === false || animal.animalAltered === 'false') ? 'No' : (animal.animalAltered || '-');
-    document.getElementById('modalAltered').textContent = altered;
-
-    document.getElementById('modalLocation').textContent = animal.animalLocationCitystate || '-';
-    document.getElementById('modalOrg').textContent = orgName ? `${orgName} ${orgPhone ? '• ' + orgPhone : ''}` : '-';
-    document.getElementById('modalContact').textContent = animal.fosterEmail || orgEmail || '-';
-
-    // Story / Notes: sanitize and display plain text
-    const rawNotes = animal.animalDescription || '';
-    const cleanNotes = sanitizeHtml(rawNotes);
-    document.getElementById('modalNotes').textContent = cleanNotes || 'No additional notes.';
-
-    // Contact button
-    const email = animal.fosterEmail || orgEmail || '';
-    const emailBtn = document.getElementById('modalEmailBtn');
-    if (email) {
-      emailBtn.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Inquiry about ' + (animal.animalName || 'animal'))}`;
-      emailBtn.classList.remove('disabled');
-    } else {
-      emailBtn.href = '#';
-      emailBtn.classList.add('disabled');
-    }
-
-    // Show modal
-    const modalEl = document.getElementById('animalModal');
-    const bsModal = new bootstrap.Modal(modalEl);
-    bsModal.show();
-
-  } catch (err) {
-    showToast(err.message || 'Error loading details');
-  } finally {
-    setLoading(false);
   }
-}
 
-// Parse simple comma/pipe/semicolon separated fields into array
-function parseListField(field) {
-  if (!field) return [];
-  if (Array.isArray(field)) return field.map(String);
-  return String(field).split(/[,|;\/]/).map(s => s.trim()).filter(Boolean);
-}
+  // Search handler
+  searchBtn.addEventListener('click', async () => {
+    const country = countryEl.value;
+    const stateName = stateEl.value;
+    const cityName = cityEl.value;
+    const distance = distanceEl.value || '25';
 
-// Event wiring
-document.getElementById('searchBtn').addEventListener('click', fetchAnimals);
-document.getElementById('clearBtn').addEventListener('click', () => {
-  document.getElementById('postalCode').value = '';
-  document.getElementById('distance').value = '';
-  document.getElementById('animalContainer').innerHTML = '';
-  document.getElementById('noResults').classList.add('d-none');
-});
-document.getElementById('postalCode').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') fetchAnimals();
+    if (!country) { showToast('Please select a country.'); return; }
+    if (!stateName) { showToast('Please select a state.'); return; }
+
+    const stateObj = regions[country] && regions[country][stateName];
+    if (!stateObj) { showToast('No mapping for selected state.'); return; }
+    if (!cityName && !stateObj['DEFAULT']) { showToast('Please select a city or configure a default postal code for the state.'); return; }
+
+    // Determine postal code
+    let postalCode = '';
+    if (cityName && stateObj[cityName]) postalCode = stateObj[cityName];
+    else if (stateObj['DEFAULT']) postalCode = stateObj['DEFAULT'];
+
+    if (!postalCode) { showToast('No postal code configured for the selected city/state.'); return; }
+
+    loadingEl.classList.remove('d-none');
+    animalContainer.innerHTML = '';
+    noResultsEl.classList.add('d-none');
+
+    try {
+      const payload = getAnimalData(postalCode, distance);
+      const apiRes = await postJson(httpApiUrl, payload);
+      const records = extractRecords(apiRes);
+
+      const animals = records.map(r => ({
+        animalID: r.animalID || r.id,
+        animalOrgID: r.animalOrgID || r.orgID,
+        animalName: r.animalName || r.name,
+        animalBreed: r.animalBreed,
+        animalAge: r.animalAge,
+        animalSex: r.animalSex,
+        animalPictures: r.animalPictures || [],
+        animalThumbnailUrl: r.animalThumbnailUrl,
+        animalLocationCitystate: r.animalLocationCitystate,
+        fosterEmail: r.fosterEmail,
+        animalDescription: r.animalDescription
+      }));
+
+      renderAnimals(animals);
+    } catch (err) {
+      console.error(err);
+      showToast('API error while searching. Try again later.');
+    } finally {
+      loadingEl.classList.add('d-none');
+    }
+  });
+
+  // Clear handler
+  clearBtn.addEventListener('click', () => {
+    countryEl.value = '';
+    stateEl.innerHTML = '<option value="">Select state</option>';
+    stateEl.disabled = true;
+    cityEl.innerHTML = '<option value="">Select city</option>';
+    cityEl.disabled = true;
+    animalContainer.innerHTML = '';
+    noResultsEl.classList.add('d-none');
+  });
 });
